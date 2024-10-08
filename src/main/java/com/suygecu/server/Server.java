@@ -1,41 +1,76 @@
-package com.suygecu;
+package com.suygecu.server;
+
+import com.suygecu.packet.InSorrow;
+import com.suygecu.packet.PacketRegistry;
 
 import java.io.DataInputStream;
-import java.io.DataOutput;
 import java.io.DataOutputStream;
 import java.io.IOException;
 import java.lang.reflect.InvocationTargetException;
 import java.net.ServerSocket;
 import java.net.Socket;
+import java.sql.SQLException;
 
+public class Server {
+    private static final int PORT = 8081;
 
-public  class Server {
-
-    private static boolean isRunningServer = true;
-    static PacketRegistry packetRegistry = new PacketRegistry();
-
-    public static void main(String[] args) throws IOException {
-        serverSocket();
-    }
-    public static void serverSocket() throws IOException {
-        ServerSocket serverSocket = new ServerSocket(8081);
-
-        while (isRunningServer) {
-            Socket clientSocket = serverSocket.accept();
-
-
+    public static void main(String[] args) {
+        Server server = new Server();
+        try {
+            DataBaseConnection.getConnection();
+            System.out.println("Connection to database established.");
+            server.startServer();
+        } catch (IOException | SQLException e) {
+            e.printStackTrace();
         }
     }
 
-    public static void handleClient(Socket clientSocket) throws IOException {
+    public void startServer() throws IOException {
+        try (ServerSocket serverSocket = new ServerSocket(PORT)) {
+            System.out.println("Server started on port " + PORT + ". Waiting for clients...");
+
+            while (true) {
+                Socket clientSocket = serverSocket.accept();
+                System.out.println("Client connected: " + clientSocket.getRemoteSocketAddress());
+                new Thread(() -> handleClient(clientSocket)).start();
+            }
+        }
+    }
+
+    private void handleClient(Socket clientSocket) {
         try (DataInputStream inputClientStream = new DataInputStream(clientSocket.getInputStream());
-             DataOutputStream outputStreamClient = new DataOutputStream(clientSocket.getOutputStream())) {
-            PacketSorrow packet = new PacketSorrow(packetRegistry, inputClientStream.readInt());
-            packet.readPacket(inputClientStream);
+             DataOutputStream outClientStream = new DataOutputStream(clientSocket.getOutputStream())) {
 
-        } catch (InvocationTargetException | NoSuchMethodException | InstantiationException | IllegalAccessException ex) {
-            ex.printStackTrace();
+            while (!clientSocket.isClosed()) {
+                int packetId = inputClientStream.readInt();
+                System.out.println("Получен пакет с ID: " + packetId);
+
+                try {
+                    InSorrow packet = PacketRegistry.createPacket(packetId);
+                    packet.readPacket(inputClientStream);  // Сначала читаем пакет
+                    packet.processPacket();                // Затем обрабатываем пакет
+
+                    int responsePacketId = packet.getPacketId();
+                    outClientStream.writeInt(responsePacketId);  // Отправляем обратно ID пакета
+                    packet.writePacket(outClientStream);         // Отправляем обратно содержимое пакета
+
+                    outClientStream.flush();
+                    System.out.println("Пакет с ID: " + responsePacketId + " обработан и отправлен клиенту");
+                } catch (NoSuchMethodException | InvocationTargetException | InstantiationException | IllegalAccessException e) {
+                    System.err.println("Ошибка при обработке пакета: " + e.getMessage());
+                    outClientStream.writeInt(-1);
+                    outClientStream.flush();
+                }
+            }
+        } catch (IOException e) {
+            e.printStackTrace();
+        } finally {
+            try {
+                clientSocket.close();
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+            System.out.println("Соединение с клиентом закрыто.");
         }
-
     }
-        }
+}

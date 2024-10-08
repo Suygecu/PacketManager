@@ -1,40 +1,54 @@
-package com.suygecu;
+package com.suygecu.packet;
+
+import com.suygecu.server.DataBaseConnection;
 
 import java.io.DataInput;
 import java.io.DataOutput;
 import java.io.IOException;
-import java.lang.reflect.InvocationTargetException;
+import java.sql.PreparedStatement;
+import java.sql.SQLException;
 
 public class PacketSorrow extends InSorrow {
-    private final PacketRegistry packetRegistry;
-    private final int packetId;
 
-    public PacketSorrow(PacketRegistry packetRegistry, int packetId) {
-        this.packetRegistry = packetRegistry;
-        this.packetId = packetId;
+    private String packetDescription;
+
+    public PacketSorrow() {
+        setPacketId(1); // Предположим ID для PacketSorrow равен 1
     }
+
+    public void setPacketDescription(String packetDescription) {
+        this.packetDescription = packetDescription;
+    }
+
+    public String getPacketDescription() {
+        return packetDescription;
+    }
+
     @Override
     public void writePacket(DataOutput output) throws IOException {
-        output.writeInt(packetId);
-        writePacket(output);
-
-
+        output.writeInt(getPacketId());
+        output.writeUTF(packetDescription != null ? packetDescription : "Undefined Packet Description");
+        System.out.println("Packet " + packetDescription + " was sent");
     }
 
     @Override
-    public void readPacket(DataInput input) throws IOException, InvocationTargetException, NoSuchMethodException, InstantiationException, IllegalAccessException {
-        int packetId = input.readInt();
-        InSorrow packet = packetRegistry.createPacket(packetId);
-        packet.readPacket(input);
+    public void readPacket(DataInput input) throws IOException {
+        setPacketId(input.readInt());
+        packetDescription = input.readUTF();
+        System.out.println("Packet " + packetDescription + " was received");
     }
 
     @Override
     public void processPacket() {
-        return ;
-    }
-
-    @Override
-    public int getPacketId() {
-        return packetId;
+        String processedDescription = "Пакет: " + getClass().getName() + " ID: " + getPacketId();
+        try (PreparedStatement statement = DataBaseConnection.getConnection().prepareStatement(
+                "INSERT INTO packets (packet_id, packet_description) VALUES (?, ?)")) {
+            statement.setInt(1, getPacketId());
+            statement.setString(2, processedDescription);
+            statement.executeUpdate();
+            System.out.println("Packet " + processedDescription + " was saved");
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
     }
 }
