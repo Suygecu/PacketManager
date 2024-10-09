@@ -44,6 +44,7 @@ public class PacketRegistry {
         } else {
             throw new NoSuchMethodException("Пакет с ID " + packetId + " не зарегистрирован.");
         }
+
     }
 
     private static class PacketEntry {
