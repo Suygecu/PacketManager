@@ -1,0 +1,173 @@
+package com.suygecu.client;
+
+import com.suygecu.packet.InSorrow;
+import com.suygecu.packet.PacketRegistry;
+import com.suygecu.util.Side;
+
+import java.io.DataInputStream;
+import java.io.DataOutputStream;
+import java.io.IOException;
+import java.lang.reflect.InvocationTargetException;
+import java.net.Socket;
+import java.util.Random;
+import java.util.concurrent.TimeUnit;
+
+public class Client {
+    private static final boolean isRunningClient = true;
+    private static final int RETRY_DELAY_SEC = 2;
+    private static final Random random = new Random();
+
+    public static void main(String[] args) {
+        try (Socket serverSocket = new Socket("127.0.0.1", 8081);
+             DataInputStream inputServerStream = new DataInputStream(serverSocket.getInputStream());
+             DataOutputStream outServerStream = new DataOutputStream(serverSocket.getOutputStream())) {
+
+            System.out.println("Соединение с сервером установлено.");
+
+            while (isRunningClient) {
+                int packetId = random.nextInt(3) + 1;
+                System.out.println("Отправка пакета с ID: " + packetId);
+
+                try {
+                    if(packetId == 2 || packetId == 3) {
+                        InSorrow packet = PacketRegistry.createPacket(1, Side.CLIENT);
+                        System.out.println("Получен пакет с ID: " + packetId);
+
+                        if (packet != null) {
+                            packet.readPacket(inputServerStream);
+                            packet.processPacket();
+
+                            int responsePacketId = packet.getPacketId();
+                            packet.writePacket(outServerStream);
+                            System.out.println("Пакет с ID: " + responsePacketId + " был отправлен на сервер");
+                            outServerStream.writeInt(-1);
+                            outServerStream.flush();
+
+                            while (inputServerStream.available() <= 0) {
+                                TimeUnit.MILLISECONDS.sleep(100);
+                            }
+
+                            int receivedPacketId = inputServerStream.readInt();
+                            System.out.println("Получен ответный пакет с ID от сервера: " + receivedPacketId);
+
+                            InSorrow responsePacket = PacketRegistry.createPacket(receivedPacketId, Side.CLIENT);
+                            responsePacket.readPacket(inputServerStream);
+                            System.out.println("Ответный пакет с ID: " + receivedPacketId + " был обработан клиентом.");
+                        }
+                    }
+                } catch (IOException | InvocationTargetException | NoSuchMethodException | InstantiationException | IllegalAccessException e) {
+                    e.printStackTrace();
+                } catch (InterruptedException e) {
+                    throw new RuntimeException(e);
+                }
+
+                try {
+                    TimeUnit.SECONDS.sleep(RETRY_DELAY_SEC);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    break;
+                }
+            }
+
+        } catch (IOException e) {
+            System.err.println("Не удалось установить соединение с сервером: " + e.getMessage());
+        }
+    }
+}
+
+посмотри что я отправляю с клиента на сервер
+
+
+и что делает с этой информацией сервер
+
+package com.suygecu.server;
+
+import com.suygecu.packet.InSorrow;
+import com.suygecu.packet.PacketRegistry;
+import com.suygecu.packet.SideOnly;
+import com.suygecu.util.Side;
+
+import java.io.DataInputStream;
+import java.io.DataOutputStream;
+import java.io.IOException;
+import java.lang.reflect.InvocationTargetException;
+import java.net.ServerSocket;
+import java.net.Socket;
+import java.sql.SQLException;
+
+public class Server {
+    private static final int PORT = 8081;
+    private static final boolean isRunningServer = true;
+
+    public static void main(String[] args) {
+
+
+        Server server = new Server();
+        try {
+            DataBaseConnection.getConnection();
+            System.out.println("Connection to database established.");
+            server.startServer();
+        } catch (IOException | SQLException e) {
+            e.printStackTrace();
+        }
+    }
+
+    public void startServer() throws IOException {
+        try (ServerSocket serverSocket = new ServerSocket(PORT)) {
+            System.out.println("Server started on port " + PORT + ". Waiting for clients...");
+
+            while (isRunningServer) {
+                Socket clientSocket = serverSocket.accept();
+                System.out.println("Client connected: " + clientSocket.getRemoteSocketAddress());
+                new Thread(() -> handleClient(clientSocket)).start();
+            }
+        }
+    }
+
+    private void handleClient(Socket clientSocket) {
+        try (DataInputStream inputClientStream = new DataInputStream(clientSocket.getInputStream());
+             DataOutputStream outClientStream = new DataOutputStream(clientSocket.getOutputStream())) {
+
+            while (isRunningServer) {
+                int packetId = inputClientStream.readInt();// Читаю ID пакета
+                System.out.println("Получен пакет с ID: " + packetId);
+
+                try {
+                    if (packetId == 1){
+                    InSorrow packet = PacketRegistry.createPacket(3, Side.SERVER);//создаю экземпляр пакета, если есть анотация(В этом пакете уже есть айди и чтения и записи)
+                    System.out.println("Проверка на Side.CLIENT пакета с ID: " + packetId);
+
+                    if (packet != null) {
+                        packet.readPacket(inputClientStream);  // Читаю созданный пакет, получаю содержимое пакета
+                        packet.processPacket();                // Записываю пакет в базу данных
+
+                        int responsePacketId = 3; // Записываю ID пакета в переменную
+                        packet.writePacket(outClientStream);         // Отправляю пакет на клиента
+                        outClientStream.flush();
+                        outClientStream.writeInt(-1);
+                        outClientStream.flush();
+                        System.out.println("Пакет с ID: " + responsePacketId + " обработан и отправлен клиенту");
+                    }
+                }  else {
+                        System.out.println("Проверка на Side.SERVER пакета с ID: " + packetId + " не прошла");{
+
+                }
+
+            }
+            } catch (IOException | InvocationTargetException | NoSuchMethodException | InstantiationException | IllegalAccessException e) {
+                    System.err.println("Ошибка при обработке пакета: " + e.getMessage());
+                    e.printStackTrace();
+                }
+                System.out.println("Соединение с клиентом закрыто.");
+        }
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+}
+
+почему-то при отправки с клиента сервер ничего не делает, просто афк стоит
+
+Я хочу что бы допустим на сервере генерировалось число, если это число равно айди пакета клиента, то мы создавали экземпляр пакета клиента, читали его, писали в бд и после отправляли его на сервер, сервер видет, что пришел id с клиентским пакетом и данными, создает экземпляр серверного пакета читает его пишет в бд и отправляет обратно на сервер
+
+И так должно быть постоянно что бы сервер и клиент менялись пакетами и обрабатывались в зависимости от сервер это или клиент

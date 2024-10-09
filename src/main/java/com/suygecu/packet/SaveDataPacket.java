@@ -1,6 +1,7 @@
 package com.suygecu.packet;
 
 import com.suygecu.server.DataBaseConnection;
+import com.suygecu.util.Side;
 
 import java.io.DataInput;
 import java.io.DataOutput;
@@ -10,35 +11,26 @@ import java.sql.SQLException;
 
 public class SaveDataPacket extends InSorrow {
 
-    private String packetDescription;
 
     public SaveDataPacket() {
         setPacketId(2);
     }
 
-    public void setPacketDescription(String packetDescription) {
-        this.packetDescription = packetDescription;
-    }
-
-    public String getPacketDescription() {
-        return packetDescription;
-    }
-
     @Override
     public void writePacket(DataOutput output) throws IOException {
         output.writeInt(getPacketId());
-        output.writeUTF(packetDescription != null ? packetDescription : "Undefined Packet Description");
-        System.out.println("Packet " + packetDescription + " was sent");
+
     }
 
     @Override
     public void readPacket(DataInput input) throws IOException {
+        input.readInt();
 
-        packetDescription = input.readUTF();
-        System.out.println("Packet " + packetDescription + " was received");
+
     }
 
     @Override
+    @SideOnly(Side.SERVER)
     public void processPacket() {
         String processedDescription = "Пакет: " + getClass().getName() + " ID: " + getPacketId();
         try (PreparedStatement statement = DataBaseConnection.getConnection().prepareStatement(
