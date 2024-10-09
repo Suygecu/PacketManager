@@ -51,7 +51,6 @@ public class Server {
                     packet.processPacket();                // Затем обрабатываем пакет
 
                     int responsePacketId = packet.getPacketId();
-                    outClientStream.writeInt(responsePacketId);  // Отправляем обратно ID пакета
                     packet.writePacket(outClientStream);         // Отправляем обратно содержимое пакета
 
                     outClientStream.flush();

@@ -13,7 +13,7 @@ public class PacketSorrow extends InSorrow {
     private String packetDescription;
 
     public PacketSorrow() {
-        setPacketId(1); // Предположим ID для PacketSorrow равен 1
+        setPacketId(3);
     }
 
     public void setPacketDescription(String packetDescription) {
@@ -33,7 +33,6 @@ public class PacketSorrow extends InSorrow {
 
     @Override
     public void readPacket(DataInput input) throws IOException {
-        setPacketId(input.readInt());
         packetDescription = input.readUTF();
         System.out.println("Packet " + packetDescription + " was received");
     }
